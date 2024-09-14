@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+    <modules>
+        <module category="Datenaustausch" context="14405_AlphaESS_Modbus" id="14405" name="AlphaESS Modbus (14405)" version="0.1">
+            <inputs>
+            	<input type="string" const_name="ip" init_value="">Alpha ESS GW IP</input>
+				<input type="number" const_name="port" init_value="502">Alpha ESS GW Port</input>
+                <input type="number" const_name="interval_s" init_value="10">Interval [s]</input>
+            </inputs>
+            <outputs>
+				<output type="number" const_name="grid_total_energy" init_value="0">Grid Total Energy [kWh]</output>
+                <output type="number" const_name="total_energy_to_grid" init_value="0">Total Energy feed to Grid [kWh]</output>
+                <output type="number" const_name="grid_total_active_power" init_value="0">Grid Total Active Power [W]</output>
+                <output type="number" const_name="PV_TOTAL_ACTIVE_POWER" init_value="0">PV Total Active Power [W]</output>
+                <output type="number" const_name="battery_status" init_value="0">Battery Status</output>
+                <output type="number" const_name="MAX_CELL_TEMPERATURE" init_value="0">Max Cell Temperature [°C]</output>
+                <output type="number" const_name="BATTERY_CAPACITY" init_value="0">Battery Capacity [kWh]</output>
+                <output type="number" const_name="BATTERY_WARNING" init_value="0">Battery Warning</output>
+                <output type="number" const_name="BATTERY_FAULT" init_value="0">Battery Fault</output>
+                <output type="number" const_name="BATTERY_CHARGE_ENERGY" init_value="0">Battery Charge Energy [kWh]</output>
+                <output type="number" const_name="BATTERY_DISCHARGE_ENERGY" init_value="0">Battery Discharge Energy [kWh]</output>
+                <output type="number" const_name="BATTERY_POWER" init_value="0">Battery Power [W]</output>
+                <output type="number" const_name="BATTERY_REMAINING_TIME" init_value="0">Battery Remaining Time [min]</output>
+                <output type="number" const_name="PV1_POWER" init_value="0">PV1 Power [W]</output>
+                <output type="number" const_name="PV2_POWER" init_value="0">PV2 Power [W]</output>
+                <output type="number" const_name="GRID_LOST" init_value="0">Grid Lost</output>
+                <output type="number" const_name="heartbeat" init_value="0">Heartbeat</output>
+
+            </outputs>
+			<remanent_variables>
+            </remanent_variables>
+            <imports>
+            </imports>		
+        </module>			
+    </modules>
+</config>
+                 

@@ -1,0 +1,4 @@
+.txt
+.csv
+.project
+.pydevproject
