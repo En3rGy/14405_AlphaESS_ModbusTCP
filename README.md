@@ -11,13 +11,13 @@ Der Baustein liest von einem AlphaESS Wechselrichter / Batteriespeicher via Modb
 
 | Nr. | Name | Initialisierung | Beschreibung |
 | --- | --- | --- | --- |
-| 1 | Nibe UDP GW IP | | IP des UDP-Gateways |
+| 1 | - | | - |
 
 ## Ausgänge
 
 | Nr. | Name | Initialisierung | Beschreibung |
 | --- | --- | --- | --- |
-| 1 | Werte (json) | | Json Objekt der Form *{'48043': {'value': 0.0, 'Title': 'Holiday - Activated'}, ...*. Die weite Auswertung kann dann z.B. mit dem Baustein 11087 erfolgen. |
+| 1 | - | | - |
 
 
 ## Beispielwerte
