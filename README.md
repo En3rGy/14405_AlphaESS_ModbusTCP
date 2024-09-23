@@ -15,10 +15,10 @@ Der Baustein liest von einem AlphaESS Wechselrichter / Batteriespeicher via Modb
 
 ## Ausgänge
 
-| Nr. | Name      | Initialisierung | Beschreibung                                                                                         |
-|-----|-----------|-----------------|------------------------------------------------------------------------------------------------------|
-| #   | Grid Lost | 0               | Sendet eine 1, wenn mind. (!) 1 Phase des Netzes ausgefallen ist (Summe V über alle Phasen < 220 * 3 |
-| #   | Heartbeat | 0               | Sendet eine 1, wenn alle (!) Register erfolgreich empfangen wurden.                                  |
+| Nr. | Name      | Initialisierung | Beschreibung                                                                                          |
+|-----|-----------|-----------------|-------------------------------------------------------------------------------------------------------|
+| #   | Grid Lost | 0               | Sendet eine 1, wenn mind. (!) 1 Phase des Netzes ausgefallen ist (Summe V über alle Phasen < 220 * 3) |
+| #   | Heartbeat | 0               | Sendet eine 1, wenn alle (!) Register erfolgreich empfangen wurden.                                   |
 
 ## Sonstiges
 
