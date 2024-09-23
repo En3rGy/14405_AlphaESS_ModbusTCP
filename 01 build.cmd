@@ -3,7 +3,7 @@ set path=%path%;C:\Python27\
 set PYTHONPATH=C:\Python27;C:\Python27\Lib
 
 set PROJNR=14405
-set PROJDIR=14405_AlphaESS_Modbus
+set PROJDIR=14405_AlphaESS_ModbusTCP
 set PROJNAME=Alpha ESS Modbus
 
 echo ^<head^> > .\release\DE-log%PROJNR%.html

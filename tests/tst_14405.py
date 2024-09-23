@@ -43,26 +43,63 @@ class TestSequenceFunctions(unittest.TestCase):
         result = self.tst.get_system_datetime()
         print(result)
 
+    def test_print_byte(self):
+        res = str_as_hex("ABC")
+        print(res)
+
+    def test_conversion(self):
+        num = 0x1234
+        print("0x%X" % num)
+
+    def test_extract_data(self):
+        hex_values = [0x00, 0x15, 0x00, 0x00, 0x00, 0x07, 0x55, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00]
+        reply = ''.join(chr(x) for x in hex_values)
+        solution = ''.join(chr(x) for x in hex_values[9:])
+        data = self.tst.extract_data(reply)
+        self.assertEqual(data, solution)
+
+    def test_read_int16(self):
+        hex_values = [0xFF, 0xFF]
+        reply = ''.join(chr(x) for x in hex_values)
+        ret = parse_modbus_response(reply, "int16")
+        self.assertEqual(-1, ret)
+
+        hex_values = [0x00, 0x01]
+        reply = ''.join(chr(x) for x in hex_values)
+        ret = parse_modbus_response(reply, "int16")
+        self.assertEqual(1, ret)
+
+    def test_read_uint16(self):
+        print("### test_read_uint16")
+        hex_values = [0x00, 0xe6, 0x00, 0xe6, 0x00, 0xe9]
+        reply = ''.join(chr(x) for x in hex_values[0:2])
+        ret = parse_modbus_response(reply, "uint16")
+        self.assertEqual(230, ret)
+
+    def test_read_uint32(self):
+        data_set = Dataset(self.tst.PIN_O_GRID_TOTAL_ENERGY, "GRID_TOTAL_ENERGY", 0x0012, "uint32", 2, 0.1)
+        hex_values = [0x00, 0x00, 0x46, 0xc1]
+        reply = ''.join(chr(x) for x in hex_values)
+        ret = parse_modbus_response(reply, data_set.data_model)
+        print(ret * data_set.scale)
+
     def test_connection(self):
-        result = self.tst.read_register(0x0703, 1)
-        result = self.tst.read_register(0x0704, 1)
+        # result = self.tst.read_register(0x0703, 1)
+        # result = self.tst.read_register(0x0704, 1)
+
+        result = self.tst.read_register(0x041D, 18, True)
+        pv1 = result[2]
+        pv2 = result[5]
+        pv3 = result[8]
+        pv4 = result[11]
+        pv5 = result[14]
+        pv6 = result[17]
+
+        print("1:{} 2:{} 3:{} 4:{} 5:{} 6:{}".format(int(pv1), int(pv2), int(pv3), int(pv4), int(pv5), int(pv6), ))
 
         # 001AH Frequent(Grid) (2 byte, 0.01Hz)
         # ret = self.tst.read_register(0x001A, 1)
         # self.assertTrue(49.0 < ret/100.0 < 51.0)
-
-        # 0021H 0022H Total Active power(Grid Meter) (4 byte, 1W/bit)
-        # ret = self.tst.read_register(0x0021, 2)
-        # self.assertTrue(ret > 0)
-
-        # 0090H 0091H Total energy feed to Grid(PV)
-
-        # 0010H 0011H Total energy feed to grid(Grid) (4 byte, 0.01kWh/bit)
-
-        # 0012H 0013H Total energy consume from grid(Grid) (4 byte, 0.1 kWh/Bit)
-        # ret = self.tst.read_register(0x0012, 2)
-        # self.assertTrue(ret > 3000)
-        # self.tst.read_register(0x0013, 2)
 
     def test_collect_data(self):
         # 001AH Frequent(Grid) (2 byte, 0.01Hz)
@@ -74,6 +111,17 @@ class TestSequenceFunctions(unittest.TestCase):
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 0
         self.assertTrue(self.tst.PIN_O_GRID_TOTAL_ENERGY in self.tst.out_sbc)
         self.assertTrue(self.tst.out_sbc[self.tst.PIN_O_GRID_TOTAL_ENERGY] > 300)
+
+    def test_monitor_grid(self):
+        # 001AH Frequent(Grid) (2 byte, 0.01Hz)
+        # ret = self.tst.read_register(0x001A, 1)
+        # self.assertTrue(49.0 < ret/100.0 < 51.0)
+
+        # 0021H 0022H Total Active power(Grid Meter) (4 byte, 1W/bit)
+        self.tst.monitor_grid()
+        self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 0
+        self.assertTrue(self.tst.PIN_O_GRID_LOST in self.tst.out_sbc)
+        self.assertTrue(self.tst.out_sbc[self.tst.PIN_O_GRID_LOST])
 
     def test_type(self):
         none_t = None
@@ -87,7 +135,7 @@ class TestSequenceFunctions(unittest.TestCase):
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 15
         self.tst.on_init()
 
-        sleep(120)
+        sleep(30)
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 0
 
     def test_grid_lost(self):

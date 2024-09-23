@@ -4,28 +4,20 @@
 
 Der Baustein liest von einem AlphaESS Wechselrichter / Batteriespeicher via ModbusTCP einige bestimmte Register aus.
 
-### Vorbereitung
-
-
 ## Eingänge
 
-| Nr. | Name | Initialisierung | Beschreibung |
-| --- | --- | --- | --- |
-| 1 | - | | - |
+| Nr. | Name              | Initialisierung | Beschreibung                          |
+|-----|-------------------|-----------------|---------------------------------------|
+| 1   | Alpha ESS GW IP   |                 | IP des AlphaESS-Geräts                |
+| 2   | Alpha ESS GW Port | 502             | Modbus TCP POrt des AlphaESS-Geräts   |
+| 3   | Interval [s]      | 10              | Abfrageintervall, keine Abfrage bei 0 |
 
 ## Ausgänge
 
-| Nr. | Name | Initialisierung | Beschreibung |
-| --- | --- | --- | --- |
-| 1 | - | | - |
-
-
-## Beispielwerte
-
-| Eingang | Ausgang |
-| --- | --- |
-| - | - |
-
+| Nr. | Name      | Initialisierung | Beschreibung                                                                                         |
+|-----|-----------|-----------------|------------------------------------------------------------------------------------------------------|
+| #   | Grid Lost | 0               | Sendet eine 1, wenn mind. (!) 1 Phase des Netzes ausgefallen ist (Summe V über alle Phasen < 220 * 3 |
+| #   | Heartbeat | 0               | Sendet eine 1, wenn alle (!) Register erfolgreich empfangen wurden.                                  |
 
 ## Sonstiges
 
@@ -46,7 +38,6 @@ Bekannte Fehler werden auf [github](https://github.com/En3rGy/14107_NibeWP) verf
 
 Please use [github issue feature](https://github.com/En3rGy/14405_AlphaESS_ModbusTCP/issues) to report bugs or rise feature requests.
 Questions can be addressed as new threads at the [knx-user-forum.de](https://knx-user-forum.de) also. There might be discussions and solutions already.
-
 
 ### Code
 

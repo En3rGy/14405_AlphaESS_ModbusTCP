@@ -3,8 +3,7 @@ import logging
 import random
 import socket
 import threading
-from cookielib import logger
-from re import DEBUG
+import struct
 
 
 ##!!!!##################################################################################################
@@ -21,6 +20,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.PIN_I_IP=1
         self.PIN_I_PORT=2
         self.PIN_I_INTERVAL_S=3
+        self.PIN_I_ON_OFF=4
         self.PIN_O_GRID_TOTAL_ENERGY=1
         self.PIN_O_TOTAL_ENERGY_TO_GRID=2
         self.PIN_O_GRID_TOTAL_ACTIVE_POWER=3
@@ -34,10 +34,12 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.PIN_O_BATTERY_DISCHARGE_ENERGY=11
         self.PIN_O_BATTERY_POWER=12
         self.PIN_O_BATTERY_REMAINING_TIME=13
-        self.PIN_O_PV1_POWER=14
-        self.PIN_O_PV2_POWER=15
-        self.PIN_O_GRID_LOST=16
-        self.PIN_O_HEARTBEAT=17
+        self.PIN_O_BATTERY_SOC=14
+        self.PIN_O_PV1_POWER=15
+        self.PIN_O_PV2_POWER=16
+        self.PIN_O_GRID_LOST=17
+        self.PIN_O_DATETIME=18
+        self.PIN_O_HEARTBEAT=19
 
 ########################################################################################################
 #### Own written code can be placed after this commentblock . Do not change or delete commentblock! ####
@@ -51,21 +53,24 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.debug_only = False
         self.g_bigendian = False
         self.out_sbc = {}
-        self.dataset = [ Dataset(self.PIN_O_GRID_TOTAL_ENERGY, "GRID_TOTAL_ENERGY", 0x0012, 2, 0.1 ),
-                Dataset(self.PIN_O_TOTAL_ENERGY_TO_GRID, "TOTAL_ENERGY_TO_GRID", 0x0090, 2, 0.01),
-                Dataset(self.PIN_O_GRID_TOTAL_ACTIVE_POWER, "GRID_TOTAL_ACTIVE_POWER", 0x0021, 2, 1),
-                Dataset(self.PIN_O_PV_TOTAL_ACTIVE_POWER, "PV_TOTAL_ACTIVE_POWER", 0x00A1, 2, 1),
-                Dataset(self.PIN_O_BATTERY_STATUS, "BATTERY_STATUS", 0x0103, 1, 1),
-                Dataset(self.PIN_O_MAX_CELL_TEMPERATURE, "MAX_CELL_TEMPERATURE", 0x0110, 1, 0.1),
-                Dataset(self.PIN_O_BATTERY_CAPACITY, "BATTERY_CAPACITY", 0x0119, 1, 0.1),
-                Dataset(self.PIN_O_BATTERY_WARNING, "BATTERY_WARNING", 0x011C, 2, 1),
-                Dataset(self.PIN_O_BATTERY_FAULT, "BATTERY_FAULT", 0x011E, 2, 1),
-                Dataset(self.PIN_O_BATTERY_CHARGE_ENERGY, "BATTERY_CHARGE_ENERGY", 0x0120, 2, 0.1),
-                Dataset(self.PIN_O_BATTERY_DISCHARGE_ENERGY, "BATTERY_DISCHARGE_ENERGY", 0x0122, 2, 0.1),
-                Dataset(self.PIN_O_BATTERY_POWER, "BATTERY_POWER", 0x0126, 1, 1),
-                Dataset(self.PIN_O_BATTERY_REMAINING_TIME, "BATTERY_REMAINING_TIME", 0x0127, 1, 1),
-                Dataset(self.PIN_O_PV1_POWER, "PV1_POWER", 0x041F, 2, 1),
-                Dataset(self.PIN_O_PV2_POWER, "PV1_POWER", 0x0423, 2, 1)]
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.timer = threading.Timer(15, self.collect_data)
+        self.dataset = [ Dataset(self.PIN_O_GRID_TOTAL_ENERGY, "GRID_TOTAL_ENERGY", 0x0012, "uint32", 2, 0.1),
+                Dataset(self.PIN_O_TOTAL_ENERGY_TO_GRID, "TOTAL_ENERGY_TO_GRID", 0x0090, "uint32", 2, 0.01),
+                Dataset(self.PIN_O_GRID_TOTAL_ACTIVE_POWER, "GRID_TOTAL_ACTIVE_POWER", 0x0021, "int32", 2, 1),
+                Dataset(self.PIN_O_PV_TOTAL_ACTIVE_POWER, "PV_TOTAL_ACTIVE_POWER", 0x00A1, "int32", 2, 1),
+                Dataset(self.PIN_O_BATTERY_SOC, "BATTERY_SOC", 0x0102, "uint16", 1, 1),
+                Dataset(self.PIN_O_BATTERY_STATUS, "BATTERY_STATUS", 0x0103, "uint16",1, 1),
+                Dataset(self.PIN_O_MAX_CELL_TEMPERATURE, "MAX_CELL_TEMPERATURE", 0x0110, "int16",1, 0.1),
+                Dataset(self.PIN_O_BATTERY_CAPACITY, "BATTERY_CAPACITY", 0x0119, "uint16",1, 0.1),
+                Dataset(self.PIN_O_BATTERY_WARNING, "BATTERY_WARNING", 0x011C, "uint32",2, 1),
+                Dataset(self.PIN_O_BATTERY_FAULT, "BATTERY_FAULT", 0x011E, "uint32",2, 1),
+                Dataset(self.PIN_O_BATTERY_CHARGE_ENERGY, "BATTERY_CHARGE_ENERGY", 0x0120, "uint32",2, 0.1),
+                Dataset(self.PIN_O_BATTERY_DISCHARGE_ENERGY, "BATTERY_DISCHARGE_ENERGY", 0x0122, "uint32",2, 0.1),
+                Dataset(self.PIN_O_BATTERY_POWER, "BATTERY_POWER", 0x0126, "int16",1, 1),
+                Dataset(self.PIN_O_BATTERY_REMAINING_TIME, "BATTERY_REMAINING_TIME", 0x0127, "uint16",1, 1),
+                Dataset(self.PIN_O_PV1_POWER, "PV1_POWER", 0x041F, "uint32",2, 1),
+                Dataset(self.PIN_O_PV2_POWER, "PV1_POWER", 0x0423, "uint32",2, 1)]
 
     def set_output_value_sbc(self, pin, val):
         # type:  (int, any) -> None
@@ -120,92 +125,88 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             register_no >> 8, quantity & 0xFF
         ]
 
-        return bytearray(request)
+        return transaction_id, bytearray(request)
 
-    def parse_modbus_response(self, response, return_hex_array=False):
-        # The response contains:
-        # - Transaction ID (2 bytes)
-        # - Protocol ID (2 bytes)
-        # - Length (2 bytes)
-        # - Unit ID (1 byte)
-        # - Function Code (1 byte)
-        # - Byte Count (1 byte)
-        # - Data (N bytes, depending on byte count)
-        # Example usage:
-        # > register_values = parse_modbus_response(response)
-        # > print("Register Values:", register_values)
+    def get_system_datetime(self):
+        response = self.read_register(0x0703, 3)
+        date_time = str_to_hex_array(response)
 
+        year = int(date_time[0]) + 2000
+        month = int(date_time[1])
+        day = int(date_time[2])
+        hour = int(date_time[3])
+        minute = int(date_time[4])
+        second = int(date_time[5])
+
+        date_time = "{}-{}-{} {}:{}:{}".format(str(year).zfill(2), str(month).zfill(2), str(day).zfill(2),
+                                               str(hour).zfill(2), str(minute).zfill(2), str(second).zfill(2))
+        return date_time
+
+    def get_socket(self):
+        print("Entering get_socket...")
+        host = str(self._get_input_value(self.PIN_I_IP))
+        port = int(self._get_input_value(self.PIN_I_PORT))
+
+        self.sock.close()
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(3)
+        self.sock.bind(('', 0)) # use a free port
+        s_ip, s_port = self.sock.getsockname()
+        self.log_data("Send from/to", "{}:{} / {}:{}".format(s_ip, s_port, host, port))
+
+        # Connect the socket to the server
+        # self.sock.connect((host, port))
+
+    def check_socket(self):
+        try:
+            s_ip, s_port = self.sock.getsockname()
+            if not s_port or s_port is 0:
+                return False
+        except socket.error as e:
+            return False
+        return True
+
+    def read_register(self, start_register, quantity):
+        """
+        :param start_register:
+        :param quantity: Amount of registers to read
+        :type: string
+        :return: Data fields of modbus reply as string.
+        """
+
+        if not self.check_socket():
+            self.get_socket()
+            host = str(self._get_input_value(self.PIN_I_IP))
+            port = int(self._get_input_value(self.PIN_I_PORT))
+            try:
+                self.sock.connect((host, port))
+            except Exception as e:
+                raise Exception("read_register | '{}' while connecting to {}:{}.".format(e, host, port))
+
+        transaction_id, request = self.build_modbus_request(start_register, quantity)
+
+        try:
+            self.sock.sendall(request)
+            response = self.sock.recv(1024)
+            self.log_data(hex(start_register), str_as_hex(response))
+        except Exception as e:
+            raise Exception("read_register | '{}' while sending/receiving".format(e))
+
+        return self.extract_data(response)
+
+    def extract_data(self, response):
         if len(response) < 9:
-            print("Invalid response length")
-            return None
+            raise Exception("read_register | Invalid response length")
 
         # Extract the data (response[9:] will contain the register values)
         data = response[9:]
-        # length = response[9]
-        register_values = []
+        length = ord(response[8])
 
-        hex_vec = [ord(c) for c in data]
-        if return_hex_array:
-            return hex_vec
+        if len(data) != length:
+            raise Exception("read_register | Expected length {} but message was {}".format(len(data),
+                                                                                               str_as_hex(response[8])))
 
-        # print("parse_modbus_response | val: {}".format(hex_vec))
-        for i in range(0, len(hex_vec), 2):
-            register = (hex_vec[i] << 8) | hex_vec[i + 1]
-            register_values.append(register)
-
-        result = 0
-        for number in register_values:
-            result = (result << 16) | number
-
-        # print("parse_modbus_response | val: {}".format(int(result)))
-        return int(result)
-
-    def get_system_datetime(self):
-        datetime = self.read_register(0x0703, 3, True)
-
-        year = int(datetime[0]) + 2000
-        month = int(datetime[1])
-        day = int(datetime[2])
-        hour = int(datetime[3])
-        minute = int(datetime[4])
-        second = int(datetime[5])
-
-        datetime = "{}-{}-{} {}:{}:{}".format(year, month, day, hour, minute, second)
-        return datetime
-
-    def read_register(self, register, quantity, return_hex_array=False):
-
-        host = str(self._get_input_value(self.PIN_I_IP))
-        port = int(self._get_input_value(self.PIN_I_PORT))
-        request = self.build_modbus_request(register, quantity)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(3)
-
-        try:
-            # Connect the socket to the server
-            sock.connect((host, port))
-            # print("Sending:  {}".format(self.print_byte_array(request)))
-            sock.sendall(request)
-            response = sock.recv(1024)
-            # print("Received: {}".format(''.join('0x{:02X} '.format(ord(c)) for c in response)))
-            return self.parse_modbus_response(response, return_hex_array)
-        except Exception as e:
-            self.log_msg("read_register | Exception reading register {}: {}".format(print_byte_array([register]), e))
-        finally:
-            sock.close()
-            # print("Connection closed.")
-
-    def hex2int(self, msg):
-        if not self.g_bigendian:
-            msg = shift_bytes(msg)
-
-        val = 0
-        val = val | msg[0]
-        for byte in msg[1:]:
-            val = val << 8
-            val = val | byte
-
-        return int(val)
+        return data
 
     def monitor_grid(self):
         # Constants for minimum voltage threshold to detect grid loss
@@ -213,14 +214,12 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         # 0014H Voltage of A Phase (Grid) RO 2-byte unsigned short 1 V/bit
         # Read the voltage of the A phase in units of 1 V per bit
-        ret_a = self.read_register(0x0014, 1)
-        ret_b = self.read_register(0x0015, 1)
-        ret_c = self.read_register(0x0016, 1)
-        if not ret_a or not ret_b or not ret_c:
-            self.log_msg("monitor_grid | At least one of the return values is None. Aborting.")
-            return
 
-        # Convert the register value to volts
+        response = self.read_register(0x0014, 3)
+        ret_a = parse_modbus_response(response[0:1], "uint16")
+        ret_b = parse_modbus_response(response[2:3], "uint16")
+        ret_c = parse_modbus_response(response[4:5], "uint16")
+
         grid_voltage = ret_a + ret_b + ret_c
 
         self.log_data("Grid Phase 1 [V]", ret_a)
@@ -237,27 +236,45 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
 
     def collect_data(self):
-        if self.debug_only: print("DEUBG | Entering collect_data.")
         interval = self._get_input_value(self.PIN_I_INTERVAL_S)
-        if interval == 0:
+        on = self._get_input_value(self.PIN_I_ON_OFF)
+        success = True
+        if interval == 0 or not on:
+            if self.check_socket():
+                self.sock.close()
             return
 
         try:
             self.monitor_grid()
         except Exception as e:
             self.log_msg("collect_data | monitor_grid() | {}".format(e))
+            success = False
 
         for register in self.dataset:
+            if register.PIN == -1:
+                continue
             try:
-                ret = self.read_register( register.register, register.length)
+                reply = self.read_register(register.register, register.length)
+                ret = parse_modbus_response(reply, register.data_model)
                 self.set_output_value_sbc( register.PIN, ret * register.scale)
             except Exception as e:
                 self.log_msg("collect_data | {} | {}".format(register.name, e))
+                success = False
 
-        self._set_output_value(self.PIN_O_HEARTBEAT, True)
+        try:
+            date_time = self.get_system_datetime()
+            self.set_output_value_sbc(self.PIN_O_DATETIME, date_time)
+        except Exception as e:
+            self.log_msg("collect_data | get_system_datetime() | {}".format(e))
+            success = False
+
+        if success:
+            self._set_output_value(self.PIN_O_HEARTBEAT, True)
 
         if interval > 0:
-            threading.Timer(interval, self.collect_data).start()
+            if self.timer.isAlive():
+                self.timer.cancel()
+            self.timer = threading.Timer(interval, self.collect_data).start()
 
     def on_init(self):
         self.DEBUG = self.FRAMEWORK.create_debug_section()
@@ -274,26 +291,109 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             print("Debug | on_init | Finished here, debugging only.")
 
     def on_input_value(self, index, value):
-        pass
+        if index == self.PIN_I_ON_OFF:
+            if value:
+                self.collect_data()
+            else:
+                if self.check_socket():
+                    self.sock.close()
+        elif index == self.PIN_I_INTERVAL_S:
+            if value > 0:
+                if self.timer.isAlive():
+                    self.timer.cancel()
+                self.collect_data()
 
 
-# Re-ordering / inverting the byte order
-def shift_bytes(msg):
-    res = []
-    for x in msg[::-1]:
-        res.append(x)
-    return res
+def str_as_hex(input_string):
+    # type: (str) -> str
+    try:
+        return " ".join("0x{:02x}".format(ord(c)) for c in input_string)
+    except Exception as e:
+        raise Exception("print_str_to_hex | {}".format(e))
 
 
-def print_byte_array(hex_array):
-    return ' '.join('0x{:02X}'.format(num) for num in hex_array)
+def bytes_to_uint16(byte_data, byteorder='big'):
+    if len(byte_data) != 2:
+        raise ValueError("Input must be exactly 2 bytes for an unsigned short")
+
+    if byteorder == 'big':
+        return struct.unpack('>H', byte_data)[0]  # Big-endian unsigned short
+    elif byteorder == 'little':
+        return struct.unpack('<H', byte_data)[0]  # Little-endian unsigned short
+    else:
+        raise ValueError("Invalid byte order. Use 'big' or 'little'.")
+
+
+def bytes_to_int16(byte_data, byteorder='big'):
+    if len(byte_data) != 2:
+        raise ValueError("Input must be exactly 2 bytes for a signed short")
+
+    if byteorder == 'big':
+        return struct.unpack('>h', byte_data)[0]  # Big-endian signed short
+    elif byteorder == 'little':
+        return struct.unpack('<h', byte_data)[0]  # Little-endian signed short
+    else:
+        raise ValueError("Invalid byte order. Use 'big' or 'little'.")
+
+
+def bytes_to_int32(byte_data, byteorder='big'):
+    # type: ([int], str) -> int
+    if len(byte_data) != 4:
+        raise ValueError("Input must be exactly 4 bytes for a signed int")
+
+    if byteorder == 'big':
+        return struct.unpack('>i', byte_data)[0]  # Big-endian signed int
+    elif byteorder == 'little':
+        return struct.unpack('<i', byte_data)[0]  # Little-endian signed int
+    else:
+        raise ValueError("Invalid byte order. Use 'big' or 'little'.")
+
+
+def bytes_to_uint32(byte_data, byteorder='big'):
+    print("Entering bytes_to_uint32({}, {})...".format(str_as_hex(byte_data), byteorder))
+    if len(byte_data) != 4:
+        raise ValueError("Input must be exactly 4 bytes for an unsigned int")
+
+    if byteorder == 'big':
+        return struct.unpack('>I', byte_data)[0]  # Big-endian unsigned int
+    elif byteorder == 'little':
+        return struct.unpack('<I', byte_data)[0]  # Little-endian unsigned int
+    else:
+        raise ValueError("Invalid byte order. Use 'big' or 'little'.")
+
+
+def str_to_hex_array(data):
+    # type: (str) -> [int]
+    hex_vec = [ord(c) for c in data]
+    return hex_vec
+
+
+def parse_modbus_response(data, data_format):
+    # type: (str, str) -> int
+    """
+    :param data: String
+    :param data_format: String
+    :return:
+    """
+    print("Entering parse_modbus_register({}, {})...".format(str_as_hex(data), data_format))
+
+    if data_format == "int32":
+        return bytes_to_int32(data)
+    elif data_format == "uint32":
+        return bytes_to_uint32(data)
+    elif data_format == "int16":
+        return bytes_to_int16(data)
+    elif data_format == "uint16":
+        return bytes_to_uint16(data)
+    else:
+        raise Exception("parse_modbus_response | {} ist not a valid data format.".format(data_format))
 
 
 class Dataset:
-    def __init__(self, pin, name, register, length, scale = 1.0):
+    def __init__(self, pin, name, register, data_model, length, scale = 1.0):
         self.PIN = pin
         self.name = name
         self.register = register
+        self.data_model = data_model
         self.length = length
         self.scale = scale
-
