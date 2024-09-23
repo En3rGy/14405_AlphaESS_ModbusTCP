@@ -11,6 +11,7 @@ Der Baustein liest von einem AlphaESS Wechselrichter / Batteriespeicher via Modb
 | 1   | Alpha ESS GW IP   |                 | IP des AlphaESS-Geräts                |
 | 2   | Alpha ESS GW Port | 502             | Modbus TCP POrt des AlphaESS-Geräts   |
 | 3   | Interval [s]      | 10              | Abfrageintervall, keine Abfrage bei 0 |
+| 4   | On/Off            | 1               | 1 = Baustein an, 0 = Baustein aus     |
 
 ## Ausgänge
 
