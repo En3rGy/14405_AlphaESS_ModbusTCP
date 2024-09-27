@@ -30,6 +30,7 @@ class TestSequenceFunctions(unittest.TestCase):
         self.tst.debug_input_value[self.tst.PIN_I_IP] = self.cred["PIN_I_IP"]
         self.tst.debug_input_value[self.tst.PIN_I_PORT] = self.cred["PIN_I_PORT"]
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 15
+        self.tst.debug_input_value[self.tst.PIN_I_ON_OFF] = True
 
         self.tst.on_init()
 
@@ -75,6 +76,14 @@ class TestSequenceFunctions(unittest.TestCase):
         reply = ''.join(chr(x) for x in hex_values[0:2])
         ret = parse_modbus_response(reply, "uint16")
         self.assertEqual(230, ret)
+
+    def test_2(self):
+        hex_values = [0x00, 0xe7, 0x00, 0xe4, 0x00, 0xe9]
+        reply = ''.join(chr(x) for x in hex_values)
+        print(len(reply))
+        print("{}, {}".format(len(reply[0:2]), str_as_hex(reply[0:2])))
+        print("{}, {}".format(len(reply[2:4]), str_as_hex(reply[2:4])))
+        print("{}, {}".format(len(reply[2:4]), str_as_hex(reply[4:6])))
 
     def test_read_uint32(self):
         data_set = Dataset(self.tst.PIN_O_GRID_TOTAL_ENERGY, "GRID_TOTAL_ENERGY", 0x0012, "uint32", 2, 0.1)

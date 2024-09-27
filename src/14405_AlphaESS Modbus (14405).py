@@ -59,7 +59,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                 Dataset(self.PIN_O_TOTAL_ENERGY_TO_GRID, "TOTAL_ENERGY_TO_GRID", 0x0090, "uint32", 2, 0.01),
                 Dataset(self.PIN_O_GRID_TOTAL_ACTIVE_POWER, "GRID_TOTAL_ACTIVE_POWER", 0x0021, "int32", 2, 1),
                 Dataset(self.PIN_O_PV_TOTAL_ACTIVE_POWER, "PV_TOTAL_ACTIVE_POWER", 0x00A1, "int32", 2, 1),
-                Dataset(self.PIN_O_BATTERY_SOC, "BATTERY_SOC", 0x0102, "uint16", 1, 1),
+                Dataset(self.PIN_O_BATTERY_SOC, "BATTERY_SOC", 0x0102, "uint16", 1, 0.1),
                 Dataset(self.PIN_O_BATTERY_STATUS, "BATTERY_STATUS", 0x0103, "uint16",1, 1),
                 Dataset(self.PIN_O_MAX_CELL_TEMPERATURE, "MAX_CELL_TEMPERATURE", 0x0110, "int16",1, 0.1),
                 Dataset(self.PIN_O_BATTERY_CAPACITY, "BATTERY_CAPACITY", 0x0119, "uint16",1, 0.1),
@@ -70,7 +70,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                 Dataset(self.PIN_O_BATTERY_POWER, "BATTERY_POWER", 0x0126, "int16",1, 1),
                 Dataset(self.PIN_O_BATTERY_REMAINING_TIME, "BATTERY_REMAINING_TIME", 0x0127, "uint16",1, 1),
                 Dataset(self.PIN_O_PV1_POWER, "PV1_POWER", 0x041F, "uint32",2, 1),
-                Dataset(self.PIN_O_PV2_POWER, "PV1_POWER", 0x0423, "uint32",2, 1)]
+                Dataset(self.PIN_O_PV2_POWER, "PV2_POWER", 0x0423, "uint32",2, 1)]
 
     def set_output_value_sbc(self, pin, val):
         # type:  (int, any) -> None
@@ -149,7 +149,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         self.sock.close()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(3)
+        self.sock.settimeout(1)
         self.sock.bind(('', 0)) # use a free port
         s_ip, s_port = self.sock.getsockname()
         self.log_data("Send from/to", "{}:{} / {}:{}".format(s_ip, s_port, host, port))
@@ -167,6 +167,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         return True
 
     def read_register(self, start_register, quantity):
+        # type: (hex, int) -> object
         """
         :param start_register:
         :param quantity: Amount of registers to read
@@ -192,21 +193,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         except Exception as e:
             raise Exception("read_register | '{}' while sending/receiving".format(e))
 
-        return self.extract_data(response)
-
-    def extract_data(self, response):
-        if len(response) < 9:
-            raise Exception("read_register | Invalid response length")
-
-        # Extract the data (response[9:] will contain the register values)
-        data = response[9:]
-        length = ord(response[8])
-
-        if len(data) != length:
-            raise Exception("read_register | Expected length {} but message was {}".format(len(data),
-                                                                                               str_as_hex(response[8])))
-
-        return data
+        return extract_data(response)
 
     def monitor_grid(self):
         # Constants for minimum voltage threshold to detect grid loss
@@ -216,15 +203,14 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         # Read the voltage of the A phase in units of 1 V per bit
 
         response = self.read_register(0x0014, 3)
-        ret_a = parse_modbus_response(response[0:1], "uint16")
-        ret_b = parse_modbus_response(response[2:3], "uint16")
-        ret_c = parse_modbus_response(response[4:5], "uint16")
+        ret_a = parse_modbus_response(response[0:2], "uint16")
+        self.log_data("Grid Phase 1 [V]", ret_a)
+        ret_b = parse_modbus_response(response[2:4], "uint16")
+        self.log_data("Grid Phase 2 [V]", ret_b)
+        ret_c = parse_modbus_response(response[4:6], "uint16")
+        self.log_data("Grid Phase 3 [V]", ret_c)
 
         grid_voltage = ret_a + ret_b + ret_c
-
-        self.log_data("Grid Phase 1 [V]", ret_a)
-        self.log_data("Grid Phase 2 [V]", ret_b)
-        self.log_data("Grid Phase 3 [V]", ret_b)
 
         # Check if the grid voltage is below the threshold
         if grid_voltage < min_voltage_threshold:
@@ -236,10 +222,12 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
 
     def collect_data(self):
+        print("Entering collect_data()...")
         interval = self._get_input_value(self.PIN_I_INTERVAL_S)
         on = self._get_input_value(self.PIN_I_ON_OFF)
         success = True
         if interval == 0 or not on:
+            print("collect_data | interval == {}, on = {}, exiting.".format(interval, on))
             if self.check_socket():
                 self.sock.close()
             return
@@ -272,8 +260,10 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             self._set_output_value(self.PIN_O_HEARTBEAT, True)
 
         if interval > 0:
-            if self.timer.isAlive():
-                self.timer.cancel()
+            if self.timer:
+                if  self.timer.isAlive():
+                    print("collect_data | Cancelling timer.")
+                    self.timer.cancel()
             self.timer = threading.Timer(interval, self.collect_data).start()
 
     def on_init(self):
@@ -314,7 +304,7 @@ def str_as_hex(input_string):
 
 def bytes_to_uint16(byte_data, byteorder='big'):
     if len(byte_data) != 2:
-        raise ValueError("Input must be exactly 2 bytes for an unsigned short")
+        raise ValueError("Input must be exactly 2 bytes for an unsigned short but was {}".format(len(byte_data)))
 
     if byteorder == 'big':
         return struct.unpack('>H', byte_data)[0]  # Big-endian unsigned short
@@ -387,6 +377,22 @@ def parse_modbus_response(data, data_format):
         return bytes_to_uint16(data)
     else:
         raise Exception("parse_modbus_response | {} ist not a valid data format.".format(data_format))
+
+
+def extract_data(response):
+    # type: (str) -> str
+    if len(response) < 9:
+        raise Exception("read_register | Invalid response length")
+
+    # Extract the data (response[9:] will contain the register values)
+    data = response[9:]
+    length = ord(response[8])
+
+    if len(data) != length:
+        raise Exception("read_register | Expected length {} but message was {}".format(len(data),
+                                                                                           str_as_hex(response[8])))
+
+    return data
 
 
 class Dataset:
