@@ -1,12 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <config>
     <modules>
-        <module category="Datenaustausch" context="14405_AlphaESS_Modbus" id="14405" name="AlphaESS Modbus (14405)" version="0.3">
+        <module category="Datenaustausch" context="14405_AlphaESS_Modbus" id="14405" name="AlphaESS Modbus (14405)" version="0.4">
             <inputs>
             	<input type="string" const_name="ip" init_value="">Alpha ESS GW IP</input>
 				<input type="number" const_name="port" init_value="502">Alpha ESS GW Port</input>
                 <input type="number" const_name="interval_s" init_value="33">Interval [s]</input>
                 <input type="number" const_name="on_off" init_value="1">On/Off</input>
+                <input type="number" const_name="battery_mode" init_value="0">Battery Mode</input>
+                <input type="string" const_name="discharge_start_time_1" init_value="">Discharge 1 start</input>
+                <input type="string" const_name="discharge_stop_time_1" init_value="">Discharge 1 stop</input>
+                <input type="string" const_name="discharge_start_time_2" init_value="">Discharge 2 start</input>
+                <input type="string" const_name="discharge_stop_time_2" init_value="">Discharge 2 stop</input>
+                <input type="string" const_name="charge_start_time_1" init_value="">Charge 1 start</input>
+                <input type="string" const_name="charge_stop_time_1" init_value="">Charge 1 stop</input>
+                <input type="string" const_name="charge_start_time_2" init_value="">Charge 2 start</input>
+                <input type="string" const_name="charge_stop_time_2" init_value="">Charge 2 stop</input>
+                <input type="number" const_name="time_period_control_flag" init_value="0">Time period control</input>
             </inputs>
             <outputs>
 				<output type="number" const_name="grid_total_energy" init_value="0">Grid Total Energy [kWh]</output>
@@ -23,10 +33,12 @@
                 <output type="number" const_name="BATTERY_POWER" init_value="0">Battery Power [W]</output>
                 <output type="number" const_name="BATTERY_REMAINING_TIME" init_value="0">Battery Remaining Time [min]</output>
                 <output type="number" const_name="BATTERY_SOC" init_value="0">Battery SOC [%]</output>
+                <output type="number" const_name="battery_mode" init_value="0">Battery Mode</output>
                 <output type="number" const_name="PV1_POWER" init_value="0">PV1 Power [W]</output>
                 <output type="number" const_name="PV2_POWER" init_value="0">PV2 Power [W]</output>
                 <output type="number" const_name="GRID_LOST" init_value="0">Grid Lost</output>
                 <output type="string" const_name="datetime" init_value="">Device Date Time</output>
+                <output type="string" const_name="time_period_control_json" init_value="">Time period control</output>
                 <output type="number" const_name="heartbeat" init_value="0">Heartbeat</output>
             </outputs>
 			<remanent_variables>

@@ -1,8 +1,7 @@
 # coding: UTF-8
-import time
+import struct
 import unittest
 import json
-from operator import contains
 from time import sleep
 
 ################################
@@ -36,7 +35,20 @@ class TestSequenceFunctions(unittest.TestCase):
 
     def test_build_modbus_request(self):
         print ("\n### test_build_modbus_request")
-        result = self.tst.build_modbus_request(0x00A1, 4)
+        result = self.tst.read_holding_register_request(0x00A1, 4)
+        # result = self.tst.build_modbus_request(0, 4)
+        self.assertEqual(result, "")
+
+    def test_set_battery_mode(self):
+        print ("\n### test_set_battery_mode")
+        number = 2
+        hex_representation = struct.pack('>H', number)
+        result = self.tst.set_battery_mode(hex_representation) # 0 Auto, 1 Charge, 2 Discharge, 3 Stand-by
+        # self.assertEqual(result, "")
+
+    def test_build_modbus_write_request(self):
+        print ("\n### test_build_modbus_write_request")
+        id, result = self.tst.write_register_request_1_byte(0x072D, 1) # 0 Auto, 1 Charge, 2 Discharge, 3 Stand-by
         # result = self.tst.build_modbus_request(0, 4)
         self.assertEqual(result, "")
 
@@ -120,6 +132,34 @@ class TestSequenceFunctions(unittest.TestCase):
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 0
         self.assertTrue(self.tst.PIN_O_GRID_TOTAL_ENERGY in self.tst.out_sbc)
         self.assertTrue(self.tst.out_sbc[self.tst.PIN_O_GRID_TOTAL_ENERGY] > 300)
+
+    def test_write_time(self):
+        # self.tst.on_input_value(self.tst.PIN_I_DISCHARGE_START_TIME_1, "09:00")
+        self.tst.on_input_value(self.tst.PIN_I_TIME_PERIOD_CONTROL_FLAG, 3)
+
+    def test_hex_to_int(self):
+        res = self.tst.hex_to_int([0x01, 0x00])
+        print(res)
+        res = self.tst.hex_to_int([0x00, 0x0A])
+        print(res)
+
+    def test_write_request(self):
+        id, request = self.tst.write_register_request_1_byte(0x0851, 256)
+        print("id: {}".format(id))
+        print(request)
+
+    def test_as(self):
+        data = [#0x00, 0x8c, 0x00, 0x00, 0x00, 0x29, 0x55,
+                #0x03, 0x26,
+                0x00, 0x03, 0x00, 0x0a, 0x00,
+                0x05, 0x00, 0x0b, 0x00, 0x11, 0x00, 0x16,
+                0x00, 0x5a, 0x00, 0x04, 0x00, 0x05, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00,
+                0x1e, 0x00, 0x00, 0x00, 0x00]
+
+        result = convert_time_control_data(data)
+        print(result)
 
     def test_monitor_grid(self):
         # 001AH Frequent(Grid) (2 byte, 0.01Hz)

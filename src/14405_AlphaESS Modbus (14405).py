@@ -1,9 +1,11 @@
 # coding: UTF-8
+import json
 import logging
 import random
 import socket
 import threading
 import struct
+from stringold import split
 
 
 ##!!!!##################################################################################################
@@ -21,6 +23,16 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.PIN_I_PORT=2
         self.PIN_I_INTERVAL_S=3
         self.PIN_I_ON_OFF=4
+        self.PIN_I_BATTERY_MODE=5
+        self.PIN_I_DISCHARGE_START_TIME_1=6
+        self.PIN_I_DISCHARGE_STOP_TIME_1=7
+        self.PIN_I_DISCHARGE_START_TIME_2=8
+        self.PIN_I_DISCHARGE_STOP_TIME_2=9
+        self.PIN_I_CHARGE_START_TIME_1=10
+        self.PIN_I_CHARGE_STOP_TIME_1=11
+        self.PIN_I_CHARGE_START_TIME_2=12
+        self.PIN_I_CHARGE_STOP_TIME_2=13
+        self.PIN_I_TIME_PERIOD_CONTROL_FLAG=14
         self.PIN_O_GRID_TOTAL_ENERGY=1
         self.PIN_O_TOTAL_ENERGY_TO_GRID=2
         self.PIN_O_GRID_TOTAL_ACTIVE_POWER=3
@@ -35,11 +47,13 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.PIN_O_BATTERY_POWER=12
         self.PIN_O_BATTERY_REMAINING_TIME=13
         self.PIN_O_BATTERY_SOC=14
-        self.PIN_O_PV1_POWER=15
-        self.PIN_O_PV2_POWER=16
-        self.PIN_O_GRID_LOST=17
-        self.PIN_O_DATETIME=18
-        self.PIN_O_HEARTBEAT=19
+        self.PIN_O_BATTERY_MODE=15
+        self.PIN_O_PV1_POWER=16
+        self.PIN_O_PV2_POWER=17
+        self.PIN_O_GRID_LOST=18
+        self.PIN_O_DATETIME=19
+        self.PIN_O_TIME_PERIOD_CONTROL_JSON=20
+        self.PIN_O_HEARTBEAT=21
 
 ########################################################################################################
 #### Own written code can be placed after this commentblock . Do not change or delete commentblock! ####
@@ -69,6 +83,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                 Dataset(self.PIN_O_BATTERY_DISCHARGE_ENERGY, "BATTERY_DISCHARGE_ENERGY", 0x0122, "uint32",2, 0.1),
                 Dataset(self.PIN_O_BATTERY_POWER, "BATTERY_POWER", 0x0126, "int16",1, 1),
                 Dataset(self.PIN_O_BATTERY_REMAINING_TIME, "BATTERY_REMAINING_TIME", 0x0127, "uint16",1, 1),
+                Dataset(self.PIN_O_BATTERY_MODE, "BATTERY_MODE", 0x072D, "uint16", 1, 1),
                 Dataset(self.PIN_O_PV1_POWER, "PV1_POWER", 0x041F, "uint32",2, 1),
                 Dataset(self.PIN_O_PV2_POWER, "PV2_POWER", 0x0423, "uint32",2, 1)]
 
@@ -96,7 +111,40 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         return self.transaction_id
 
-    def build_modbus_request(self, start_address, quantity):
+    def write_register_request_1_byte(self, start_address, data):
+        # Modbus TCP request format:
+        # Transaction ID (2 bytes) + Protocol ID (2 bytes) + Length (2 bytes) + Unit ID (1 byte) + Function Code (1 byte) + Start Address (2 bytes) + Data (2 bytes)
+        # Example usage:
+        # > start_address = 0  # The starting register address
+        # > quantity = 10  # Number of registers to read
+        # > request = self.build_modbus_request(start_address, quantity)
+
+        transaction_id = self.get_transaction_id() | 0x0000  # 2 byte, Can be anything, just a unique ID
+        protocol_id = 0x0000  # 2 byte, Modbus protocol ID is 0
+        length = 0x0006  # 2 byte, Number of bytes in the message (Unit ID + Function Code + Address + Data)
+        unit_id = 0x55 # 1 byte = 85
+        function_code = 0x06  # 1 byte, Function code 6: Write Single Register
+
+        # data
+        start_address = start_address  # 2 byte
+        data_s = data # 1 byte
+
+        # Construct the Modbus request
+        request = [
+            transaction_id >> 8, transaction_id & 0xFF,
+            protocol_id >> 8, protocol_id & 0xFF,
+            length >> 8, length & 0xFF,
+            unit_id,
+            function_code,
+            start_address >> 8, start_address & 0xFF,
+            data_s >> 8, data & 0xFF
+        ]
+
+        print(' '.join(['0x{:02X}'.format(num) for num in request]))
+
+        return transaction_id, bytearray(request)
+
+    def read_holding_register_request(self, start_address, quantity):
         # Modbus TCP request format:
         # Transaction ID (2 bytes) + Protocol ID (2 bytes) + Length (2 bytes) + Unit ID (1 byte) + Function Code (1 byte) + Start Address (2 bytes) + Quantity of Registers (2 bytes)
         # Example usage:
@@ -127,8 +175,15 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         return transaction_id, bytearray(request)
 
+    def get_time_period_control_data(self):
+        response = self.read_register(0x084F, 19)
+        data = str_to_hex_array(response)
+        result = convert_time_control_data(data)
+
+        self.set_output_value_sbc(self.PIN_O_TIME_PERIOD_CONTROL_JSON, json.dumps(result))
+
     def get_system_datetime(self):
-        response = self.read_register(0x0703, 3)
+        response = self.read_register(0x0740, 3)
         date_time = str_to_hex_array(response)
 
         year = int(date_time[0]) + 2000
@@ -162,9 +217,14 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             s_ip, s_port = self.sock.getsockname()
             if not s_port or s_port is 0:
                 return False
-        except socket.error as e:
+        except socket.error:
             return False
         return True
+
+    def set_battery_mode(self, mode):
+        battery_mode_register = 0x072D
+        response = self.set_register(battery_mode_register, mode)
+        return response
 
     def read_register(self, start_register, quantity):
         # type: (hex, int) -> object
@@ -184,12 +244,12 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             except Exception as e:
                 raise Exception("read_register | '{}' while connecting to {}:{}.".format(e, host, port))
 
-        transaction_id, request = self.build_modbus_request(start_register, quantity)
+        transaction_id, request = self.read_holding_register_request(start_register, quantity)
 
         try:
             self.sock.sendall(request)
             response = self.sock.recv(1024)
-            self.log_data(hex(start_register), str_as_hex(response))
+            self.log_data("read_register | {}".format(hex(start_register)), str_as_hex(response))
         except Exception as e:
             raise Exception("read_register | '{}' while sending/receiving".format(e))
 
@@ -220,12 +280,11 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             # Grid is present
             self.set_output_value_sbc(self.PIN_O_GRID_LOST, False)
 
-
     def collect_data(self):
         print("Entering collect_data()...")
         interval = self._get_input_value(self.PIN_I_INTERVAL_S)
         on = self._get_input_value(self.PIN_I_ON_OFF)
-        success = True
+        success = False
         if interval == 0 or not on:
             print("collect_data | interval == {}, on = {}, exiting.".format(interval, on))
             if self.check_socket():
@@ -234,9 +293,9 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         try:
             self.monitor_grid()
+            success = True
         except Exception as e:
-            self.log_msg("collect_data | monitor_grid() | {}".format(e))
-            success = False
+            self.log_msg("collect_data | monitor_grid() | Exception: {}".format(e))
 
         for register in self.dataset:
             if register.PIN == -1:
@@ -245,16 +304,22 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                 reply = self.read_register(register.register, register.length)
                 ret = parse_modbus_response(reply, register.data_model)
                 self.set_output_value_sbc( register.PIN, ret * register.scale)
+                success = True
             except Exception as e:
-                self.log_msg("collect_data | {} | {}".format(register.name, e))
-                success = False
+                self.log_msg("collect_data | {} | Exception: {}".format(register.name, e))
 
         try:
             date_time = self.get_system_datetime()
             self.set_output_value_sbc(self.PIN_O_DATETIME, date_time)
+            success = True
         except Exception as e:
-            self.log_msg("collect_data | get_system_datetime() | {}".format(e))
-            success = False
+            self.log_msg("collect_data | get_system_datetime() | Exception: {}".format(e))
+
+        try:
+            self.get_time_period_control_data()
+            success = True
+        except Exception as e:
+            self.log_msg("collect_data | get_time_period_control_data() | Exception: {}".format(e))
 
         if success:
             self._set_output_value(self.PIN_O_HEARTBEAT, True)
@@ -265,6 +330,36 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                     print("collect_data | Cancelling timer.")
                     self.timer.cancel()
             self.timer = threading.Timer(interval, self.collect_data).start()
+
+    def set_register(self, addr, data):
+        self.log_msg("set_register(addr={}, ...)".format(hex(addr)))
+        if not self.check_socket():
+            self.get_socket()
+            host = str(self._get_input_value(self.PIN_I_IP))
+            port = int(self._get_input_value(self.PIN_I_PORT))
+            try:
+                self.sock.connect((host, port))
+            except Exception as e:
+                raise Exception("set_register | '{}' while connecting to {}:{}.".format(e, host, port))
+
+        transaction_id, request = self.write_register_request_1_byte(addr, data)
+
+        try:
+            self.sock.sendall(request)
+            response = self.sock.recv(1024)
+            self.log_data("set_register(addr={}, ...) | Reply".format(hex(addr)), str_as_hex(response))
+        except Exception as e:
+            raise Exception("set_register | '{}' while sending/receiving".format(e))
+
+        return response
+
+    def write_time(self, hh_addr, mm_addr, time_str, pin):
+        try:
+            hh, mm = get_time_data(time_str)
+            self.set_register(hh_addr, hh)
+            self.set_register(mm_addr, mm)
+        except Exception as e:
+            self.log_msg("write_time(pin={}) | Exception: {}".format(pin, e))
 
     def on_init(self):
         self.DEBUG = self.FRAMEWORK.create_debug_section()
@@ -281,17 +376,53 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             print("Debug | on_init | Finished here, debugging only.")
 
     def on_input_value(self, index, value):
+        print("Entering on_input_value({},{})...".format(index, value))
         if index == self.PIN_I_ON_OFF:
             if value:
                 self.collect_data()
             else:
                 if self.check_socket():
                     self.sock.close()
+
         elif index == self.PIN_I_INTERVAL_S:
             if value > 0:
                 if self.timer.isAlive():
                     self.timer.cancel()
                 self.collect_data()
+
+        elif index == self.PIN_I_BATTERY_MODE:
+            self.set_battery_mode(value)
+
+        elif index == self.PIN_I_DISCHARGE_START_TIME_1:
+            self.write_time(0x0851, 0x085A, value, index)
+        elif index == self.PIN_I_DISCHARGE_STOP_TIME_1:
+            self.write_time(0x0852, 0x085B, value, index)
+        elif index == self.PIN_I_DISCHARGE_START_TIME_2:
+            self.write_time(0x0853, 0x085C, value, index)
+        elif index == self.PIN_I_DISCHARGE_STOP_TIME_2:
+            self.write_time(0x0854, 0x085D, value, index)
+
+        elif index == self.PIN_I_CHARGE_START_TIME_1:
+            self.write_time(0x0856, 0x085E, value, index)
+        elif index == self.PIN_I_CHARGE_STOP_TIME_1:
+            self.write_time(0x0857, 0x085F, value, index)
+        elif index == self.PIN_I_CHARGE_START_TIME_2:
+            self.write_time(0x0858, 0x0860, value, index)
+        elif index == self.PIN_I_CHARGE_STOP_TIME_2:
+            self.write_time(0x0859, 0x0861, value, index)
+
+        elif index == self.PIN_I_TIME_PERIOD_CONTROL_FLAG:
+            try:
+                self.set_register(0x084F, value)
+            except Exception as e:
+                self.log_msg("on_input_value | {} | {}".format(index, e))
+
+
+def get_time_data(time):
+    time_split = time.split(":")
+    hh = int(time_split[0])
+    mm = int(time_split[1])
+    return hh, mm
 
 
 def str_as_hex(input_string):
@@ -300,6 +431,49 @@ def str_as_hex(input_string):
         return " ".join("0x{:02x}".format(ord(c)) for c in input_string)
     except Exception as e:
         raise Exception("print_str_to_hex | {}".format(e))
+
+
+def convert_time_control_data(data):
+
+    # 0 1 | 2 3 | 4 5 | 6 7 | 8 9 | 10 11 | 12 13 | 14 15 | 16 17 | 18 19 | 20 21 | 22 23 |
+    # 24 25 | 26 27 | 28 29 | 30 31 | 32 33 | 34 35 | 36 37
+
+    time_period_control_flag = hex_to_int(data[0:2])
+    ups_reserve_soc = hex_to_int(data[2:4])
+    time_discharge_start_1_hours = hex_to_int(data[4:6])
+    time_discharge_stop_1_hours = hex_to_int(data[6:8])
+    time_discharge_start_2_hours = hex_to_int(data[8:10])
+    time_discharge_stop_2_hours = hex_to_int(data[10:12])
+    charge_cut_soc = hex_to_int(data[12:14])
+    time_charge_start_1_hours = hex_to_int(data[14:16])
+    time_charge_stop_1_hours = hex_to_int(data[16:18])
+    time_charge_start_2_hours = hex_to_int(data[18:20])
+    time_charge_stop_2_hours = hex_to_int(data[20:22])
+
+    time_discharge_start_1_minutes = hex_to_int(data[22:24])
+    time_discharge_stop_1_minutes = hex_to_int(data[24:26])
+    time_discharge_start_2_minutes = hex_to_int(data[26:28])
+    time_discharge_stop_2_minutes = hex_to_int(data[28:30])
+
+    time_charge_start_1_minutes = hex_to_int(data[30:32])
+    time_charge_stop_1_minutes = hex_to_int(data[32:34])
+    time_charge_start_2_minutes = hex_to_int(data[34:36])
+    time_charge_stop_2_minutes = hex_to_int(data[36:])
+
+    result = {"control_flag": time_period_control_flag,
+              "discharge_1_start": "{:02d}:{:02d}".format(time_discharge_start_1_hours, time_discharge_start_1_minutes),
+              "discharge_1_stop": "{:02d}:{:02d}".format(time_discharge_stop_1_hours, time_discharge_stop_1_minutes),
+              "discharge_2_start": "{:02d}:{:02d}".format(time_discharge_start_2_hours, time_discharge_start_2_minutes),
+              "discharge_2_stop": "{:02d}:{:02d}".format(time_discharge_stop_2_hours, time_discharge_stop_2_minutes),
+              "charge_1_start": "{:02d}:{:02d}".format(time_charge_start_1_hours, time_charge_start_1_minutes),
+              "charge_1_stop": "{:02d}:{:02d}".format(time_charge_stop_1_hours, time_charge_stop_1_minutes),
+              "charge_2_start": "{:02d}:{:02d}".format(time_charge_start_2_hours, time_charge_start_2_minutes),
+              "charge_2_stop": "{:02d}:{:02d}".format(time_charge_stop_2_hours, time_charge_stop_2_minutes),
+              "ups_reserve_soc": ups_reserve_soc,
+              "charge_cut_soc": charge_cut_soc
+              }
+
+    return result
 
 
 def bytes_to_uint16(byte_data, byteorder='big'):
@@ -312,6 +486,13 @@ def bytes_to_uint16(byte_data, byteorder='big'):
         return struct.unpack('<H', byte_data)[0]  # Little-endian unsigned short
     else:
         raise ValueError("Invalid byte order. Use 'big' or 'little'.")
+
+
+def hex_to_int(hex_array):
+    result = 0
+    for byte in hex_array:
+        result = (result << 8) | byte  # Shift left by 8 bits and add the next byte
+    return result
 
 
 def bytes_to_int16(byte_data, byteorder='big'):
@@ -389,8 +570,7 @@ def extract_data(response):
     length = ord(response[8])
 
     if len(data) != length:
-        raise Exception("read_register | Expected length {} but message was {}".format(len(data),
-                                                                                           str_as_hex(response[8])))
+        raise Exception("read_register | Expected length {} but message was {}".format(str_as_hex(response[8]), len(data)))
 
     return data
 

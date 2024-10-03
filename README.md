@@ -6,19 +6,21 @@ Der Baustein liest von einem AlphaESS Wechselrichter / Batteriespeicher via Modb
 
 ## Eingänge
 
-| Nr. | Name              | Initialisierung | Beschreibung                          |
-|-----|-------------------|-----------------|---------------------------------------|
-| 1   | Alpha ESS GW IP   |                 | IP des AlphaESS-Geräts                |
-| 2   | Alpha ESS GW Port | 502             | Modbus TCP POrt des AlphaESS-Geräts   |
-| 3   | Interval [s]      | 10              | Abfrageintervall, keine Abfrage bei 0 |
-| 4   | On/Off            | 1               | 1 = Baustein an, 0 = Baustein aus     |
+| Nr. | Name              | Initialisierung | Beschreibung                                      |
+|-----|-------------------|-----------------|---------------------------------------------------|
+| 1   | Alpha ESS GW IP   |                 | IP des AlphaESS-Geräts                            |
+| 2   | Alpha ESS GW Port | 502             | Modbus TCP POrt des AlphaESS-Geräts               |
+| 3   | Interval [s]      | 10              | Abfrageintervall, keine Abfrage bei 0             |
+| 4   | On/Off            | 1               | 1 = Baustein an, 0 = Baustein aus                 |
+| 5   | Battery Mode      | 0               | 0 = Auto, 1 = Charge, 2 = Discharge, 3 = Stand-by |
 
 ## Ausgänge
 
-| Nr. | Name      | Initialisierung | Beschreibung                                                                                          |
-|-----|-----------|-----------------|-------------------------------------------------------------------------------------------------------|
-| #   | Grid Lost | 0               | Sendet eine 1, wenn mind. (!) 1 Phase des Netzes ausgefallen ist (Summe V über alle Phasen < 220 * 3) |
-| #   | Heartbeat | 0               | Sendet eine 1, wenn alle (!) Register erfolgreich empfangen wurden.                                   |
+| Nr. | Name         | Initialisierung | Beschreibung                                                                                          |
+|-----|--------------|-----------------|-------------------------------------------------------------------------------------------------------|
+| #   | Battery Mode | 0               | 0 = Auto, 1 = Charge, 2 = Discharge, 3 = Stand-by                                                     |
+| #   | Grid Lost    | 0               | Sendet eine 1, wenn mind. (!) 1 Phase des Netzes ausgefallen ist (Summe V über alle Phasen < 220 * 3) |
+| #   | Heartbeat    | 0               | Sendet eine 1, wenn alle (!) Register erfolgreich empfangen wurden.                                   |
 
 ## Sonstiges
 
