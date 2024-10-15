@@ -204,9 +204,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.sock.bind(('', 0)) # use a free port
         s_ip, s_port = self.sock.getsockname()
         self.log_data("Send from/to", "{}:{} / {}:{}".format(s_ip, s_port, host, port))
-
-        # Connect the socket to the server
-        # self.sock.connect((host, port))
+        self.log_msg("Socket (re-) opened.")
 
     def check_socket(self):
         try:
@@ -240,7 +238,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         try:
             self.sock.sendall(request)
             response = self.sock.recv(1024)
-            self.log_data("read_register | {}".format(hex(start_register)), str_as_hex(response))
+            if self.debug_only: print("DEBUG |read_register | {}".format(hex(start_register)), str_as_hex(response))
         except Exception as e:
             if self.sock:
                 self.sock.close()
@@ -407,7 +405,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             try:
                 self.set_register(0x084F, int(value))
             except Exception as e:
-                self.log_msg("on_input_value | PIN_I_TIME_PERIOD_CONTROL_FLAG | {}".format(e))
+                self.log_msg("on_input_value | PIN_I_TIME_PERIOD_CONTROL_FLAG | Exception: {}".format(e))
 
 
 def get_time_data(time):
