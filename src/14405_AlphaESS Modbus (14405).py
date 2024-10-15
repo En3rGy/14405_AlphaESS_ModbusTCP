@@ -23,16 +23,15 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.PIN_I_PORT=2
         self.PIN_I_INTERVAL_S=3
         self.PIN_I_ON_OFF=4
-        self.PIN_I_BATTERY_MODE=5
-        self.PIN_I_DISCHARGE_START_TIME_1=6
-        self.PIN_I_DISCHARGE_STOP_TIME_1=7
-        self.PIN_I_DISCHARGE_START_TIME_2=8
-        self.PIN_I_DISCHARGE_STOP_TIME_2=9
-        self.PIN_I_CHARGE_START_TIME_1=10
-        self.PIN_I_CHARGE_STOP_TIME_1=11
-        self.PIN_I_CHARGE_START_TIME_2=12
-        self.PIN_I_CHARGE_STOP_TIME_2=13
-        self.PIN_I_TIME_PERIOD_CONTROL_FLAG=14
+        self.PIN_I_DISCHARGE_START_TIME_1=5
+        self.PIN_I_DISCHARGE_STOP_TIME_1=6
+        self.PIN_I_DISCHARGE_START_TIME_2=7
+        self.PIN_I_DISCHARGE_STOP_TIME_2=8
+        self.PIN_I_CHARGE_START_TIME_1=9
+        self.PIN_I_CHARGE_STOP_TIME_1=10
+        self.PIN_I_CHARGE_START_TIME_2=11
+        self.PIN_I_CHARGE_STOP_TIME_2=12
+        self.PIN_I_TIME_PERIOD_CONTROL_FLAG=13
         self.PIN_O_GRID_TOTAL_ENERGY=1
         self.PIN_O_TOTAL_ENERGY_TO_GRID=2
         self.PIN_O_GRID_TOTAL_ACTIVE_POWER=3
@@ -47,13 +46,12 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.PIN_O_BATTERY_POWER=12
         self.PIN_O_BATTERY_REMAINING_TIME=13
         self.PIN_O_BATTERY_SOC=14
-        self.PIN_O_BATTERY_MODE=15
-        self.PIN_O_PV1_POWER=16
-        self.PIN_O_PV2_POWER=17
-        self.PIN_O_GRID_LOST=18
-        self.PIN_O_DATETIME=19
-        self.PIN_O_TIME_PERIOD_CONTROL_JSON=20
-        self.PIN_O_HEARTBEAT=21
+        self.PIN_O_PV1_POWER=15
+        self.PIN_O_PV2_POWER=16
+        self.PIN_O_GRID_LOST=17
+        self.PIN_O_DATETIME=18
+        self.PIN_O_TIME_PERIOD_CONTROL_JSON=19
+        self.PIN_O_HEARTBEAT=20
 
 ########################################################################################################
 #### Own written code can be placed after this commentblock . Do not change or delete commentblock! ####
@@ -74,7 +72,6 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                 Dataset(self.PIN_O_GRID_TOTAL_ACTIVE_POWER, "GRID_TOTAL_ACTIVE_POWER", 0x0021, "int32", 2, 1),
                 Dataset(self.PIN_O_PV_TOTAL_ACTIVE_POWER, "PV_TOTAL_ACTIVE_POWER", 0x00A1, "int32", 2, 1),
                 Dataset(self.PIN_O_BATTERY_SOC, "BATTERY_SOC", 0x0102, "uint16", 1, 0.1),
-                Dataset(self.PIN_O_BATTERY_STATUS, "BATTERY_STATUS", 0x0103, "uint16",1, 1),
                 Dataset(self.PIN_O_MAX_CELL_TEMPERATURE, "MAX_CELL_TEMPERATURE", 0x0110, "int16",1, 0.1),
                 Dataset(self.PIN_O_BATTERY_CAPACITY, "BATTERY_CAPACITY", 0x0119, "uint16",1, 0.1),
                 Dataset(self.PIN_O_BATTERY_WARNING, "BATTERY_WARNING", 0x011C, "uint32",2, 1),
@@ -83,7 +80,6 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                 Dataset(self.PIN_O_BATTERY_DISCHARGE_ENERGY, "BATTERY_DISCHARGE_ENERGY", 0x0122, "uint32",2, 0.1),
                 Dataset(self.PIN_O_BATTERY_POWER, "BATTERY_POWER", 0x0126, "int16",1, 1),
                 Dataset(self.PIN_O_BATTERY_REMAINING_TIME, "BATTERY_REMAINING_TIME", 0x0127, "uint16",1, 1),
-                Dataset(self.PIN_O_BATTERY_MODE, "BATTERY_MODE", 0x072D, "uint16", 1, 1),
                 Dataset(self.PIN_O_PV1_POWER, "PV1_POWER", 0x041F, "uint32",2, 1),
                 Dataset(self.PIN_O_PV2_POWER, "PV2_POWER", 0x0423, "uint32",2, 1)]
 
@@ -127,7 +123,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         # data
         start_address = start_address  # 2 byte
-        data_s = data # 1 byte
+        data_s = int(data) # 1 byte
 
         # Construct the Modbus request
         request = [
@@ -137,7 +133,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             unit_id,
             function_code,
             start_address >> 8, start_address & 0xFF,
-            data_s >> 8, data & 0xFF
+            data_s >> 8, int(data) & 0xFF
         ]
 
         print(' '.join(['0x{:02X}'.format(num) for num in request]))
@@ -221,11 +217,6 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             return False
         return True
 
-    def set_battery_mode(self, mode):
-        battery_mode_register = 0x072D
-        response = self.set_register(battery_mode_register, mode)
-        return response
-
     def read_register(self, start_register, quantity):
         # type: (hex, int) -> object
         """
@@ -251,6 +242,8 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             response = self.sock.recv(1024)
             self.log_data("read_register | {}".format(hex(start_register)), str_as_hex(response))
         except Exception as e:
+            if self.sock:
+                self.sock.close()
             raise Exception("read_register | '{}' while sending/receiving".format(e))
 
         return extract_data(response)
@@ -349,6 +342,8 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             response = self.sock.recv(1024)
             self.log_data("set_register(addr={}, ...) | Reply".format(hex(addr)), str_as_hex(response))
         except Exception as e:
+            if self.sock:
+                self.sock.close()
             raise Exception("set_register | '{}' while sending/receiving".format(e))
 
         return response
@@ -390,9 +385,6 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
                     self.timer.cancel()
                 self.collect_data()
 
-        elif index == self.PIN_I_BATTERY_MODE:
-            self.set_battery_mode(value)
-
         elif index == self.PIN_I_DISCHARGE_START_TIME_1:
             self.write_time(0x0851, 0x085A, value, index)
         elif index == self.PIN_I_DISCHARGE_STOP_TIME_1:
@@ -413,9 +405,9 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
         elif index == self.PIN_I_TIME_PERIOD_CONTROL_FLAG:
             try:
-                self.set_register(0x084F, value)
+                self.set_register(0x084F, int(value))
             except Exception as e:
-                self.log_msg("on_input_value | {} | {}".format(index, e))
+                self.log_msg("on_input_value | PIN_I_TIME_PERIOD_CONTROL_FLAG | {}".format(e))
 
 
 def get_time_data(time):

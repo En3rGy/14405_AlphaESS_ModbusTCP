@@ -7,7 +7,6 @@
 				<input type="number" const_name="port" init_value="502">Alpha ESS GW Port</input>
                 <input type="number" const_name="interval_s" init_value="33">Interval [s]</input>
                 <input type="number" const_name="on_off" init_value="1">On/Off</input>
-                <input type="number" const_name="battery_mode" init_value="0">Battery Mode</input>
                 <input type="string" const_name="discharge_start_time_1" init_value="">Discharge 1 start</input>
                 <input type="string" const_name="discharge_stop_time_1" init_value="">Discharge 1 stop</input>
                 <input type="string" const_name="discharge_start_time_2" init_value="">Discharge 2 start</input>
@@ -33,7 +32,6 @@
                 <output type="number" const_name="BATTERY_POWER" init_value="0">Battery Power [W]</output>
                 <output type="number" const_name="BATTERY_REMAINING_TIME" init_value="0">Battery Remaining Time [min]</output>
                 <output type="number" const_name="BATTERY_SOC" init_value="0">Battery SOC [%]</output>
-                <output type="number" const_name="battery_mode" init_value="0">Battery Mode</output>
                 <output type="number" const_name="PV1_POWER" init_value="0">PV1 Power [W]</output>
                 <output type="number" const_name="PV2_POWER" init_value="0">PV2 Power [W]</output>
                 <output type="number" const_name="GRID_LOST" init_value="0">Grid Lost</output>
