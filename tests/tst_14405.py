@@ -91,15 +91,15 @@ class TestSequenceFunctions(unittest.TestCase):
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 1
         self.tst.collect_data()
         self.tst.debug_input_value[self.tst.PIN_I_INTERVAL_S] = 0
-        print(json.dumps(self.tst.send_msg_pipe))
+        print("# send_msg_pipe={}".format(json.dumps(self.tst.send_msg_pipe)))
 
         solution1={"addr": 0x0012, "is_write": False, "data": 2 }
         solution2={"addr": 0x0740, "data": 3, "is_write": False}
         solution3= {"addr": 0x0126, "data": 1, "is_write": 1}
 
-        self.assertTrue(solution1 in self.tst.send_msg_pipe)
-        self.assertTrue(solution2 in self.tst.send_msg_pipe)
-        self.assertTrue(solution3 in self.tst.send_msg_pipe)
+        self.assertTrue(solution1 in self.tst.send_msg_pipe, "sol1")
+        self.assertTrue(solution2 in self.tst.send_msg_pipe, "sol2")
+        self.assertTrue(solution3 in self.tst.send_msg_pipe, "sol3")
 
     def test_get_msg(self):
         print ("\n### write request")
@@ -190,7 +190,10 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertTrue(self.tst.out_sbc[self.tst.PIN_O_GRID_TOTAL_ENERGY] > 300)
 
     def test_calc(self):
-        print(0x0127 - 0x0102 + 1)
+        print("0x0127 - 0x0102 + 1 = {}".format(0x0127 - 0x0102 + 1))
+        print("0x0090  + 19 - 0x0012 + 1 = {}".format(0x0090 + 19 - 0x0012 + 1))
+        print("0x041F - 0x0090 + 1 = {}".format(0x041F - 0x0090 + 1))
+        print("0x0740 - 0x041F + 1 = {}".format(0x0740 - 0x041F + 1))
 
     # @todo continue here downwards
 

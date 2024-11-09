@@ -69,6 +69,7 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.send_msg_intervall = 0.2
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.timer = threading.Timer(15, self.collect_data)
+        self.send_ok = False
 
     def set_output_value_sbc(self, pin, val):
         # type:  (int, any) -> None
@@ -89,8 +90,9 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
 
     def get_transaction_id(self):
         self.transaction_id = self.transaction_id + 1
-        if self.transaction_id > 65535:
+        if self.transaction_id > 0xFFFE:
             self.transaction_id = 1
+            self.log_msg("Transaction ID reset.")
 
         return self.transaction_id
 
@@ -165,13 +167,16 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
         self.add_to_send_pipe(0x0090, 19, False)  # Meter/PV
         self.add_to_send_pipe(0x0102, 38, False)  # Battery
         self.add_to_send_pipe(0x041F, 6, False)   # PVx Power
+        self.add_to_send_pipe(0x0740, 3, False)   # Time
 
-        if interval > 0:
-            if self.timer:
-                if  self.timer.isAlive():
-                    self.logger.debug("collect_data | Cancelling timer.")
-                    self.timer.cancel()
-            self.timer = threading.Timer(interval, self.collect_data).start()
+        if self.send_ok:
+            self._set_output_value(self.PIN_O_HEARTBEAT, True)
+
+        if self.timer:
+            if  self.timer.isAlive():
+                self.logger.debug("collect_data | Cancelling timer.")
+                self.timer.cancel()
+        self.timer = threading.Timer(interval, self.collect_data).start()
 
     def process_send_msg_pipe(self):
         """
@@ -194,9 +199,11 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             self.parse_reply(entry["addr"], reply)
             self.send_msg_pipe.pop(0)
 
-            self._set_output_value(self.PIN_O_HEARTBEAT, True)  # @todo heartbeat less frequent
+            self.send_ok = True
+            self.log_data("Last successful connection", datetime.now().isoformat())
         except Exception as e:
             self.log_msg("process_send_msg_pipe | Exception {}".format(e))
+            self.send_ok = False
 
             if "repetition" in entry:
                 entry["repetition"] = entry["repetition"] + 1
@@ -207,8 +214,8 @@ class AlphaESSModbus_14405_14405(hsl20_4.BaseModule):
             else:
                 entry["repetition"] = 0
             self.send_msg_pipe[0] = entry
-
-        threading.Timer(self.send_msg_intervall, self.process_send_msg_pipe).start()
+        finally:
+            threading.Timer(self.send_msg_intervall, self.process_send_msg_pipe).start()
 
     def add_to_send_pipe(self, addr, data, is_write):
         self.logger.debug("Entering add_to_send_pipe(addr={}, data={}, is_write={})...".format(hex(addr), data, is_write))
