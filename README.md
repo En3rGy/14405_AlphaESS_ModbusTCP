@@ -1,3 +1,4 @@
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
 # AlphaESS ModbusTCP (14405)
 
 ## Beschreibung 
